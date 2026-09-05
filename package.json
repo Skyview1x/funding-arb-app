@@ -1,0 +1,14 @@
+{
+  "name": "funding-arb-dashboard",
+  "version": "1.0.0",
+  "description": "Cross-exchange perpetual funding-rate arbitrage dashboard",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open:android": "npx cap open android"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
+  }
+}
