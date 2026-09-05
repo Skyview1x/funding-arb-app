@@ -1,0 +1,9 @@
+{
+  "appId": "com.local.fundingarb",
+  "appName": "Funding Arb Dashboard",
+  "webDir": "www",
+  "backgroundColor": "#0A0E14",
+  "android": {
+    "allowMixedContent": false
+  }
+}
