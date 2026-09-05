@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Funding Arb — Cross-Exchange Perp Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0A0E14;
+    --panel: #10151F;
+    --panel-2: #141B27;
+    --border: #212A38;
+    --border-soft: #1A222E;
+    --text: #DCE3ED;
+    --muted: #6B7686;
+    --muted-2: #8B96A8;
+    --gold: #E8A33D;
+    --gold-dim: #4A3A1E;
+    --green: #3FBF7F;
+    --green-dim: #163526;
+    --red: #E2574C;
+    --red-dim: #351A18;
+    --blue: #5B8DEF;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:var(--sans); height:100%;}
+  body{font-size:14px; line-height:1.4;}
+  ::selection{background:var(--gold-dim); color:var(--gold);}
+  a{color:inherit;}
+  button{font-family:var(--sans); cursor:pointer;}
+  input,select{font-family:var(--sans);}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 22px; border-bottom:1px solid var(--border);
+    background:var(--panel);
+  }
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand .mark{font-family:var(--mono); font-weight:700; color:var(--gold); font-size:16px; letter-spacing:0.5px;}
+  .brand .sub{color:var(--muted); font-size:12.5px;}
+  .status{display:flex; align-items:center; gap:16px; font-family:var(--mono); font-size:12px; color:var(--muted-2);}
+  .status .dot{width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:6px;}
+  .dot.live{background:var(--green); box-shadow:0 0 8px var(--green);}
+  .dot.demo{background:var(--gold); box-shadow:0 0 8px var(--gold);}
+  .dot.off{background:var(--red);}
+  .refresh-btn{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    padding:7px 14px; font-size:12.5px; font-family:var(--mono); border-radius:2px;
+  }
+  .refresh-btn:hover{border-color:var(--gold); color:var(--gold);}
+
+  .capital-input{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--gold);
+    font-family:var(--mono); font-weight:600; font-size:13px; padding:6px 8px; width:90px;
+    border-radius:2px; text-align:right;
+  }
+
+  /* ---------- Summary strip ---------- */
+  .summary{
+    display:grid; grid-template-columns:repeat(6, 1fr); gap:1px;
+    background:var(--border); border-bottom:1px solid var(--border);
+  }
+  .summary .cell{background:var(--panel); padding:14px 18px;}
+  .summary .cell .label{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;}
+  .summary .cell .value{font-family:var(--mono); font-size:19px; font-weight:600;}
+  .summary .cell .value.gold{color:var(--gold);}
+  .summary .cell .value.green{color:var(--green);}
+  .summary .cell .sub{color:var(--muted-2); font-size:11px; margin-top:4px; font-family:var(--mono);}
+
+  /* ---------- Filter bar ---------- */
+  .filters{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    padding:12px 22px; border-bottom:1px solid var(--border); background:var(--bg);
+  }
+  .filters .grp{display:flex; flex-direction:column; gap:3px;}
+  .filters label{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em;}
+  .filters input, .filters select{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; font-size:12.5px; border-radius:2px; font-family:var(--mono); min-width:88px;
+  }
+  .filters input:focus, .filters select:focus{outline:none; border-color:var(--gold);}
+  .filters .clear{
+    align-self:flex-end; background:none; border:1px solid var(--border-soft); color:var(--muted-2);
+    padding:6px 12px; font-size:12px; border-radius:2px; margin-left:auto;
+  }
+  .filters .clear:hover{color:var(--red); border-color:var(--red);}
+
+  /* ---------- Table ---------- */
+  .tablewrap{padding:0 22px 40px; overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; margin-top:16px; min-width:1400px;}
+  thead th{
+    text-align:right; font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--muted); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--border);
+    white-space:nowrap; cursor:pointer; user-select:none;
+  }
+  thead th.left{text-align:left;}
+  thead th:hover{color:var(--gold);}
+  thead th.sorted{color:var(--gold);}
+  tbody td{
+    text-align:right; padding:11px 10px; border-bottom:1px solid var(--border-soft);
+    font-family:var(--mono); font-size:12.5px; white-space:nowrap;
+  }
+  tbody td.left{text-align:left; font-family:var(--sans);}
+  tbody tr{cursor:pointer; transition:background 0.1s;}
+  tbody tr:hover{background:var(--panel);}
+  tbody tr.best{background:linear-gradient(90deg, rgba(232,163,61,0.08), transparent);}
+  .sym{font-weight:600; font-family:var(--mono);}
+  .exch-pair{display:flex; align-items:center; gap:4px; font-size:11.5px; color:var(--muted-2);}
+  .exch-pair .lg{color:var(--green);}
+  .exch-pair .sh{color:var(--red);}
+  .pos{color:var(--green);}
+  .neg{color:var(--red);}
+  .badge{
+    display:inline-block; padding:3px 9px; border-radius:2px; font-size:10.5px;
+    font-family:var(--mono); font-weight:600; text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .badge.strong{background:var(--green-dim); color:var(--green); border:1px solid #1E5C3F;}
+  .badge.good{background:#1E2E1A; color:#8FCB6C; border:1px solid #33512A;}
+  .badge.watch{background:var(--gold-dim); color:var(--gold); border:1px solid #6B5426;}
+  .badge.avoid{background:var(--red-dim); color:var(--red); border:1px solid #5C2622;}
+  .score{font-weight:700; font-family:var(--mono);}
+  .empty-row td{text-align:center; padding:60px 20px; color:var(--muted); font-family:var(--sans);}
+
+  /* ---------- Drawer ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(4,6,10,0.6); z-index:40;
+    opacity:0; pointer-events:none; transition:opacity 0.18s;
+  }
+  .overlay.open{opacity:1; pointer-events:auto;}
+  .drawer{
+    position:fixed; top:0; right:0; height:100%; width:min(680px, 94vw);
+    background:var(--panel); border-left:1px solid var(--border); z-index:41;
+    transform:translateX(100%); transition:transform 0.22s ease; overflow-y:auto;
+  }
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:22px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--panel); z-index:2;
+  }
+  .drawer-head h2{font-family:var(--mono); font-size:20px;}
+  .drawer-head .route{color:var(--muted-2); font-size:13px; margin-top:4px;}
+  .drawer-head .route .lg{color:var(--green);}
+  .drawer-head .route .sh{color:var(--red);}
+  .close-btn{background:none; border:none; color:var(--muted); font-size:22px; line-height:1;}
+  .close-btn:hover{color:var(--text);}
+  .drawer-body{padding:20px 22px 60px;}
+  .section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted);
+    margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border-soft);
+  }
+  .section-title:first-child{margin-top:0;}
+  .kv-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;}
+  .kv{display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0;}
+  .kv .k{color:var(--muted-2);}
+  .kv .v{font-family:var(--mono); font-weight:600;}
+  .ob-cols{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .ob-col h4{font-size:12px; margin-bottom:8px; color:var(--muted-2); font-family:var(--mono);}
+  .ob-row{display:flex; justify-content:space-between; font-family:var(--mono); font-size:11.5px; padding:2px 0;}
+  .ob-row.ask{color:var(--red);}
+  .ob-row.bid{color:var(--green);}
+  .proj-table{width:100%; border-collapse:collapse; margin-top:6px;}
+  .proj-table th{font-size:10.5px; color:var(--muted); text-align:right; padding:6px 8px; text-transform:uppercase; border-bottom:1px solid var(--border-soft);}
+  .proj-table th:first-child, .proj-table td:first-child{text-align:left;}
+  .proj-table td{font-family:var(--mono); font-size:12px; text-align:right; padding:6px 8px; border-bottom:1px solid var(--border-soft);}
+  .note{
+    background:var(--panel-2); border:1px solid var(--border); border-left:2px solid var(--gold);
+    padding:10px 14px; font-size:12px; color:var(--muted-2); margin-top:16px; border-radius:2px;
+  }
+  canvas{width:100%; height:120px; display:block; margin-top:8px;}
+  .loading-line{color:var(--muted); font-family:var(--mono); font-size:12px; padding:10px 0;}
+
+  footer.disclaimer{
+    padding:16px 22px 30px; color:var(--muted); font-size:11.5px; max-width:1000px; line-height:1.6;
+  }
+  @media (max-width: 900px){
+    .summary{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="mark">FUNDING/ARB</span>
+    <span class="sub">Cross-exchange perpetual funding-rate scanner</span>
+  </div>
+  <div class="status">
+    <span id="exchStatus"></span>
+    <label style="color:var(--muted-2); font-family:var(--sans); font-size:12px;">Capital
+      <input class="capital-input" id="capitalInput" type="number" value="100" min="1" step="1" />
+      USDT
+    </label>
+    <label style="color:var(--muted-2); font-family:var(--sans); font-size:12px;">Leverage
+      <input class="capital-input" id="leverageInput" type="number" value="3" min="1" max="20" step="1" style="width:56px;" />
+      x
+    </label>
+    <span id="lastUpdated">—</span>
+    <button class="refresh-btn" id="refreshBtn">Refresh now</button>
+  </div>
+</div>
+
+<div class="summary" id="summaryStrip"></div>
+
+<div class="filters">
+  <div class="grp"><label>Min diff %/8h</label><input id="f_diff" type="number" step="0.001" placeholder="0.00"/></div>
+  <div class="grp"><label>Min net %</label><input id="f_netpct" type="number" step="0.01" placeholder="0.00"/></div>
+  <div class="grp"><label>Min net USDT</label><input id="f_netusd" type="number" step="0.01" placeholder="0.00"/></div>
+  <div class="grp"><label>Exchange</label>
+    <select id="f_exch"><option value="">Any</option><option>Binance</option><option>Bybit</option><option>OKX</option></select>
+  </div>
+  <div class="grp"><label>Coin</label><input id="f_coin" type="text" placeholder="BTC"/></div>
+  <div class="grp"><label>Min score</label><input id="f_score" type="number" step="1" min="0" max="100" placeholder="0"/></div>
+  <div class="grp"><label>Min volume 24h ($M)</label><input id="f_vol" type="number" step="1" placeholder="0"/></div>
+  <div class="grp"><label>Classification</label>
+    <select id="f_class"><option value="">Any</option><option>Strong Opportunity</option><option>Good Opportunity</option><option>Watch</option></select>
+  </div>
+  <button class="clear" id="clearFilters">Clear filters</button>
+</div>
+
+<div class="tablewrap">
+  <table id="opTable">
+    <thead>
+      <tr>
+        <th class="left" data-k="symbol">Coin</th>
+        <th class="left" data-k="route">Route (long → short)</th>
+        <th data-k="diff">Diff %/8h</th>
+        <th data-k="nextFunding">Next funding</th>
+        <th data-k="netUsd">Net profit $</th>
+        <th data-k="netPct">Net %</th>
+        <th data-k="posSize">Notional / leg</th>
+        <th data-k="margin">Margin req. (total)</th>
+        <th data-k="basis">Basis</th>
+        <th data-k="score">Score</th>
+        <th class="left" data-k="cls">Class</th>
+      </tr>
+    </thead>
+    <tbody id="opBody">
+      <tr class="empty-row"><td colspan="11">Loading market data…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer class="disclaimer">
+  Educational tool, not financial advice. Funding-rate differentials, fees, slippage, and liquidation distances shown here are estimates derived from public market data and simplified assumptions (see each opportunity's detail panel). Daily/weekly/monthly projections assume the current funding differential holds constant, which real markets rarely do. Fees use standard taker-fee assumptions, not your personal fee tier. Always verify live order-book prices, funding schedules, and account margin requirements directly on the exchange before trading. Cross-exchange funding arbitrage carries execution risk (legs can fill at different times/prices), exchange counterparty risk, transfer/withdrawal risk, and liquidation risk on both legs — a $100 position leaves very little room for adverse price moves once fees and slippage are subtracted.
+</footer>
+
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <h2 id="drawerTitle">—</h2>
+      <div class="route" id="drawerRoute"></div>
+    </div>
+    <button class="close-btn" id="closeDrawer">&times;</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const SYMBOLS = [
+  {base:'BTC',  binance:'BTCUSDT',  bybit:'BTCUSDT',  okx:'BTC-USDT-SWAP'},
+  {base:'ETH',  binance:'ETHUSDT',  bybit:'ETHUSDT',  okx:'ETH-USDT-SWAP'},
+  {base:'SOL',  binance:'SOLUSDT',  bybit:'SOLUSDT',  okx:'SOL-USDT-SWAP'},
+  {base:'XRP',  binance:'XRPUSDT',  bybit:'XRPUSDT',  okx:'XRP-USDT-SWAP'},
+  {base:'DOGE', binance:'DOGEUSDT', bybit:'DOGEUSDT', okx:'DOGE-USDT-SWAP'},
+  {base:'ADA',  binance:'ADAUSDT',  bybit:'ADAUSDT',  okx:'ADA-USDT-SWAP'},
+  {base:'AVAX', binance:'AVAXUSDT', bybit:'AVAXUSDT', okx:'AVAX-USDT-SWAP'},
+  {base:'LINK', binance:'LINKUSDT', bybit:'LINKUSDT', okx:'LINK-USDT-SWAP'},
+  {base:'LTC',  binance:'LTCUSDT',  bybit:'LTCUSDT',  okx:'LTC-USDT-SWAP'},
+  {base:'BNB',  binance:'BNBUSDT',  bybit:'BNBUSDT',  okx:'BNB-USDT-SWAP'},
+  {base:'DOT',  binance:'DOTUSDT',  bybit:'DOTUSDT',  okx:'DOT-USDT-SWAP'},
+  {base:'TRX',  binance:'TRXUSDT',  bybit:'TRXUSDT',  okx:'TRX-USDT-SWAP'},
+  {base:'NEAR', binance:'NEARUSDT', bybit:'NEARUSDT', okx:'NEAR-USDT-SWAP'},
+  {base:'ARB',  binance:'ARBUSDT',  bybit:'ARBUSDT',  okx:'ARB-USDT-SWAP'},
+  {base:'OP',   binance:'OPUSDT',   bybit:'OPUSDT',   okx:'OP-USDT-SWAP'},
+  {base:'SUI',  binance:'SUIUSDT',  bybit:'SUIUSDT',  okx:'SUI-USDT-SWAP'},
+  {base:'APT',  binance:'APTUSDT',  bybit:'APTUSDT',  okx:'APT-USDT-SWAP'},
+  {base:'INJ',  binance:'INJUSDT',  bybit:'INJUSDT',  okx:'INJ-USDT-SWAP'},
+  {base:'FIL',  binance:'FILUSDT',  bybit:'FILUSDT',  okx:'FIL-USDT-SWAP'},
+  {base:'ATOM', binance:'ATOMUSDT', bybit:'ATOMUSDT', okx:'ATOM-USDT-SWAP'},
+];
+
+// Standard taker-fee assumptions (fraction per side). User's real tier may differ.
+const FEES = { Binance: 0.0004, Bybit: 0.00055, OKX: 0.0005 };
+const EXCHANGES = ['Binance','Bybit','OKX'];
+const REFRESH_MS = 60000;
+const FUNDING_INTERVAL_HOURS = 8; // typical; displayed actual next-funding time is exchange-reported
+
+let capital = 100;
+let leverage = 3;
+let liveState = { Binance:'pending', Bybit:'pending', OKX:'pending' };
+let marketData = { Binance:{}, Bybit:{}, OKX:{} }; // symbol.base -> {price, funding, nextFundingMs, vol24h, oi}
+let opportunities = [];
+let sortKey = 'netUsd', sortDir = -1;
+let refreshTimer = null;
+
+/* ============================================================
+   FETCHERS (best-effort live, graceful fallback to demo)
+   ============================================================ */
+async function fetchBinance(){
+  const out = {};
+  try{
+    const [premRes, tickRes] = await Promise.all([
+      fetch('https://fapi.binance.com/fapi/v1/premiumIndex'),
+      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr')
+    ]);
+    if(!premRes.ok || !tickRes.ok) throw new Error('bad status');
+    const prem = await premRes.json();
+    const tick = await tickRes.json();
+    const volBySym = {}; tick.forEach(t => volBySym[t.symbol] = parseFloat(t.quoteVolume));
+    const bySym = {}; prem.forEach(p => bySym[p.symbol] = p);
+    SYMBOLS.forEach(s=>{
+      const p = bySym[s.binance];
+      if(!p) return;
+      out[s.base] = {
+        price: parseFloat(p.markPrice),
+        funding: parseFloat(p.lastFundingRate),
+        nextFundingMs: parseInt(p.nextFundingTime),
+        vol24h: volBySym[s.binance] || 0,
+      };
+    });
+    liveState.Binance = 'live';
+  }catch(e){
+    liveState.Binance = 'demo';
+    SYMBOLS.forEach(s=> out[s.base] = demoRow(s.base, 'Binance'));
+  }
+  marketData.Binance = out;
+}
+
+async function fetchBybit(){
+  const out = {};
+  try{
+    const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+    if(!res.ok) throw new Error('bad status');
+    const j = await res.json();
+    if(!j.result || !j.result.list) throw new Error('bad payload');
+    const bySym = {}; j.result.list.forEach(t => bySym[t.symbol] = t);
+    SYMBOLS.forEach(s=>{
+      const t = bySym[s.bybit];
+      if(!t) return;
+      out[s.base] = {
+        price: parseFloat(t.markPrice),
+        funding: parseFloat(t.fundingRate),
+        nextFundingMs: parseInt(t.nextFundingTime),
+        vol24h: parseFloat(t.turnover24h) || 0,
+        oi: parseFloat(t.openInterestValue) || undefined,
+      };
+    });
+    liveState.Bybit = 'live';
+  }catch(e){
+    liveState.Bybit = 'demo';
+    SYMBOLS.forEach(s=> out[s.base] = demoRow(s.base, 'Bybit'));
+  }
+  marketData.Bybit = out;
+}
+
+async function fetchOKX(){
+  const out = {};
+  try{
+    const tickRes = await fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP');
+    if(!tickRes.ok) throw new Error('bad status');
+    const tickJ = await tickRes.json();
+    const bySym = {}; (tickJ.data||[]).forEach(t => bySym[t.instId] = t);
+
+    // OKX has no bulk funding-rate endpoint — fetch per instrument in parallel.
+    const fundingResults = await Promise.all(SYMBOLS.map(s =>
+      fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${s.okx}`)
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+    ));
+    SYMBOLS.forEach((s, i) => {
+      const t = bySym[s.okx];
+      const fr = fundingResults[i] && fundingResults[i].data && fundingResults[i].data[0];
+      if(!t || !fr) return;
+      out[s.base] = {
+        price: parseFloat(t.last),
+        funding: parseFloat(fr.fundingRate),
+        nextFundingMs: parseInt(fr.nextFundingTime || fr.fundingTime),
+        vol24h: parseFloat(t.volCcy24h) || 0,
+      };
+    });
+    if(Object.keys(out).length === 0) throw new Error('empty');
+    liveState.OKX = 'live';
+  }catch(e){
+    liveState.OKX = 'demo';
+    SYMBOLS.forEach(s=> out[s.base] = demoRow(s.base, 'OKX'));
+  }
+  marketData.OKX = out;
+}
+
+// Deterministic-ish demo data so numbers stay stable-looking between refreshes when an exchange is unreachable.
+function demoRow(base, exch){
+  const seed = hashStr(base+exch);
+  const rand = mulberry32(seed);
+  const basePrice = { BTC:64000, ETH:3400, SOL:150, XRP:0.55, DOGE:0.13, ADA:0.45, AVAX:28, LINK:14,
+    LTC:75, BNB:580, DOT:6.2, TRX:0.12, NEAR:5.3, ARB:0.75, OP:1.6, SUI:2.4, APT:8.5, INJ:22, FIL:4.8, ATOM:6.8
+  }[base] || 10;
+  const priceJitter = 1 + (rand()-0.5)*0.006;
+  const funding = (rand()-0.5)*0.0012; // roughly -0.06% to +0.06% per 8h
+  const now = Date.now();
+  const nextFundingMs = now + (1 + Math.floor(rand()*8)) * 3600*1000;
+  return {
+    price: basePrice*priceJitter,
+    funding,
+    nextFundingMs,
+    vol24h: 5_000_000 + rand()*400_000_000,
+    demo:true,
+  };
+}
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h = (h<<5)-h + s.charCodeAt(i); h|=0;} return Math.abs(h)||1; }
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+async function fetchOrderBookTop(exch, s){
+  try{
+    if(exch==='Binance'){
+      const r = await fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${s.binance}&limit=5`);
+      const j = await r.json();
+      return { bids: j.bids.map(b=>[+b[0],+b[1]]), asks: j.asks.map(a=>[+a[0],+a[1]]) };
+    }
+    if(exch==='Bybit'){
+      const r = await fetch(`https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${s.bybit}&limit=5`);
+      const j = await r.json();
+      return { bids: j.result.b.map(b=>[+b[0],+b[1]]), asks: j.result.a.map(a=>[+a[0],+a[1]]) };
+    }
+    if(exch==='OKX'){
+      const r = await fetch(`https://www.okx.com/api/v5/market/books?instId=${s.okx}&sz=5`);
+      const j = await r.json();
+      const d = j.data[0];
+      return { bids: d.bids.map(b=>[+b[0],+b[1]]), asks: d.asks.map(a=>[+a[0],+a[1]]) };
+    }
+  }catch(e){ return null; }
+}
+
+/* ============================================================
+   CALCULATIONS
+   ============================================================ */
+function buildOpportunities(){
+  const rows = [];
+  SYMBOLS.forEach(s=>{
+    const quotes = EXCHANGES.map(ex => ({ ex, d: marketData[ex][s.base] })).filter(q => q.d);
+    if(quotes.length < 2) return;
+    // try every long/short exchange pair
+    for(let i=0;i<quotes.length;i++){
+      for(let j=0;j<quotes.length;j++){
+        if(i===j) continue;
+        const longQ = quotes[i], shortQ = quotes[j];
+        // Long the exchange with the LOWER (more negative / smaller) funding rate,
+        // short the one with the HIGHER funding rate -> collect the differential.
+        if(!(longQ.d.funding < shortQ.d.funding)) continue;
+        const opp = computeOpp(s, longQ, shortQ);
+        if(opp && opp.netUsd > 0) rows.push(opp);
+      }
+    }
+  });
+  return rows;
+}
+
+function computeOpp(s, longQ, shortQ){
+  const longPrice = longQ.d.price, shortPrice = shortQ.d.price;
+  if(!longPrice || !shortPrice) return null;
+  const diff = shortQ.d.funding - longQ.d.funding; // per funding interval, fraction
+  if(diff <= 0) return null;
+
+  const basisPct = (shortPrice - longPrice) / longPrice;
+
+  // Position sizing: split capital in half as margin for each leg (both legs same notional).
+  const marginPerLeg = capital / 2;
+  const notionalPerLeg = marginPerLeg * leverage;
+  const positionSize = notionalPerLeg; // USD notional per leg
+
+  // Fees: taker, open + close, both legs
+  const feeLong = FEES[longQ.ex], feeShort = FEES[shortQ.ex];
+  const totalFeesPct = (feeLong + feeShort) * 2; // open+close on both legs
+  const feesUsd = totalFeesPct * notionalPerLeg;
+
+  // Slippage: heuristic default (refined live in detail view from order-book depth)
+  const slippagePctPerLeg = 0.0006; // 0.06% assumption per leg, both entries
+  const slippageUsd = slippagePctPerLeg * 2 * notionalPerLeg;
+
+  // Funding income for one interval on the notional
+  const fundingIncomeUsd = diff * notionalPerLeg;
+
+  // Basis cost/benefit (difference in entry prices realized as PnL when positions are opened/closed at the same time)
+  const basisCostUsd = Math.abs(basisPct) * notionalPerLeg * 0.5; // conservative haircut, partially recoverable
+
+  const netUsd = fundingIncomeUsd - feesUsd - slippageUsd - basisCostUsd;
+  const netPct = (netUsd / capital) * 100;
+
+  // liquidation distance (simplified: 1/leverage minus maintenance margin buffer)
+  const liqDistPct = (1/leverage) * 0.9 * 100; // % adverse move to liquidation, approx
+
+  const volMin = Math.min(longQ.d.vol24h||0, shortQ.d.vol24h||0);
+  const liquidityScore = Math.min(100, (volMin/50_000_000)*100);
+  const diffScore = Math.min(100, (diff/0.001)*100);
+  const feeScore = Math.max(0, 100 - totalFeesPct*100*40);
+  const basisScore = Math.max(0, 100 - Math.abs(basisPct)*100*200);
+  const score = Math.round(clamp(diffScore*0.40 + liquidityScore*0.25 + feeScore*0.15 + basisScore*0.20, 0, 100));
+
+  let cls = 'Avoid';
+  if(score >= 75 && netPct > 0.15) cls = 'Strong Opportunity';
+  else if(score >= 55 && netUsd > 0) cls = 'Good Opportunity';
+  else if(netUsd > 0) cls = 'Watch';
+
+  return {
+    base: s.base, s,
+    longEx: longQ.ex, shortEx: shortQ.ex,
+    longPrice, shortPrice,
+    longFunding: longQ.d.funding, shortFunding: shortQ.d.funding,
+    diff, basisPct,
+    nextFundingMs: Math.min(longQ.d.nextFundingMs||Infinity, shortQ.d.nextFundingMs||Infinity),
+    marginPerLeg, positionSize, leverage,
+    feesUsd, slippageUsd, fundingIncomeUsd, basisCostUsd,
+    netUsd, netPct, liqDistPct, score, cls,
+    vol24hLong: longQ.d.vol24h, vol24hShort: shortQ.d.vol24h,
+    demo: !!(longQ.d.demo || shortQ.d.demo),
+  };
+}
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function fmtUsd(v){ return (v<0?'-':'') + '$' + Math.abs(v).toFixed(2); }
+function fmtPct(v, d=3){ return (v>0?'+':'') + (v*100).toFixed(d) + '%'; }
+function fmtPctPlain(v, d=2){ return v.toFixed(d)+'%'; }
+function fmtVol(v){ if(!v) return '—'; if(v>=1e9) return (v/1e9).toFixed(2)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; return (v/1e3).toFixed(0)+'K'; }
+function fmtCountdown(ms){
+  if(!isFinite(ms)) return '—';
+  const d = ms - Date.now();
+  if(d <= 0) return 'now';
+  const h = Math.floor(d/3600000), m = Math.floor((d%3600000)/60000);
+  return `${h}h ${m}m`;
+}
+function badgeClass(cls){
+  return { 'Strong Opportunity':'strong','Good Opportunity':'good','Watch':'watch','Avoid':'avoid' }[cls] || 'avoid';
+}
+
+function renderStatus(){
+  const map = { live:'live', demo:'demo', pending:'off' };
+  document.getElementById('exchStatus').innerHTML = EXCHANGES.map(ex =>
+    `<span><span class="dot ${map[liveState[ex]]}"></span>${ex} ${liveState[ex]==='live'?'live':liveState[ex]==='demo'?'demo data':'…'}</span>`
+  ).join(' &nbsp; ');
+}
+
+function renderSummary(){
+  const el = document.getElementById('summaryStrip');
+  if(opportunities.length === 0){
+    el.innerHTML = `<div class="cell"><div class="label">Profitable opportunities</div><div class="value">0</div></div>`;
+    return;
+  }
+  const best = opportunities[0];
+  const coinCounts = {};
+  opportunities.forEach(o => coinCounts[o.base] = (coinCounts[o.base]||0)+1);
+  const topCoins = Object.entries(coinCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]).join(', ');
+  const avgDiff = opportunities.reduce((a,o)=>a+o.diff,0)/opportunities.length;
+  const exCounts = {long:{}, short:{}};
+  opportunities.forEach(o=>{ exCounts.long[o.longEx]=(exCounts.long[o.longEx]||0)+1; exCounts.short[o.shortEx]=(exCounts.short[o.shortEx]||0)+1; });
+  const bestLong = Object.entries(exCounts.long).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+  const bestShort = Object.entries(exCounts.short).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+
+  el.innerHTML = `
+    <div class="cell">
+      <div class="label">Best opportunity now</div>
+      <div class="value gold">${best.base}</div>
+      <div class="sub">${best.longEx} → ${best.shortEx}</div>
+    </div>
+    <div class="cell">
+      <div class="label">Est. profit on $${capital}</div>
+      <div class="value green">${fmtUsd(best.netUsd)}</div>
+      <div class="sub">per ${FUNDING_INTERVAL_HOURS}h interval</div>
+    </div>
+    <div class="cell">
+      <div class="label">Est. ROI on $${capital}</div>
+      <div class="value green">${fmtPctPlain(best.netPct)}</div>
+      <div class="sub">per interval, before compounding</div>
+    </div>
+    <div class="cell">
+      <div class="label">Highest diff / interval</div>
+      <div class="value">${fmtPct(Math.max(...opportunities.map(o=>o.diff)))}</div>
+      <div class="sub">avg across all: ${fmtPct(avgDiff)}</div>
+    </div>
+    <div class="cell">
+      <div class="label">Profitable opportunities</div>
+      <div class="value">${opportunities.length}</div>
+      <div class="sub">long ${bestLong} / short ${bestShort} most common</div>
+    </div>
+    <div class="cell">
+      <div class="label">Most active coins</div>
+      <div class="value" style="font-size:14px;">${topCoins||'—'}</div>
+      <div class="sub">by opportunity count</div>
+    </div>
+  `;
+}
+
+function getFilters(){
+  return {
+    diff: parseFloat(document.getElementById('f_diff').value)||0,
+    netpct: parseFloat(document.getElementById('f_netpct').value)||0,
+    netusd: parseFloat(document.getElementById('f_netusd').value)||0,
+    exch: document.getElementById('f_exch').value,
+    coin: document.getElementById('f_coin').value.trim().toUpperCase(),
+    score: parseFloat(document.getElementById('f_score').value)||0,
+    vol: parseFloat(document.getElementById('f_vol').value)||0,
+    cls: document.getElementById('f_class').value,
+  };
+}
+
+function applyFiltersAndSort(){
+  const f = getFilters();
+  let rows = opportunities.filter(o=>{
+    if(o.diff*100 < f.diff) return false;
+    if(o.netPct < f.netpct) return false;
+    if(o.netUsd < f.netusd) return false;
+    if(f.exch && o.longEx!==f.exch && o.shortEx!==f.exch) return false;
+    if(f.coin && o.base!==f.coin) return false;
+    if(o.score < f.score) return false;
+    if(Math.min(o.vol24hLong||0,o.vol24hShort||0) < f.vol*1_000_000) return false;
+    if(f.cls && o.cls!==f.cls) return false;
+    return true;
+  });
+  const dirMul = sortDir;
+  const keyFn = {
+    symbol:o=>o.base, route:o=>o.longEx+o.shortEx, diff:o=>o.diff, nextFunding:o=>o.nextFundingMs,
+    netUsd:o=>o.netUsd, netPct:o=>o.netPct, posSize:o=>o.positionSize, margin:o=>o.marginPerLeg*2,
+    basis:o=>Math.abs(o.basisPct), score:o=>o.score, cls:o=>o.cls,
+  }[sortKey] || (o=>o.netUsd);
+  rows.sort((a,b)=> (keyFn(a) > keyFn(b) ? 1 : keyFn(a) < keyFn(b) ? -1 : 0) * dirMul);
+  return rows;
+}
+
+function renderTable(){
+  const rows = applyFiltersAndSort();
+  const body = document.getElementById('opBody');
+  if(rows.length === 0){
+    body.innerHTML = `<tr class="empty-row"><td colspan="11">No opportunities meet these filters right now. Widen filters or wait for the next refresh.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map((o, idx)=> `
+    <tr data-idx="${opportunities.indexOf(o)}" class="${idx===0 && sortKey==='netUsd' && sortDir===-1 ? 'best':''}">
+      <td class="left sym">${o.base}${o.demo?' <span style="color:var(--muted);font-size:10px;">(demo)</span>':''}</td>
+      <td class="left"><span class="exch-pair"><span class="lg">${o.longEx}</span> → <span class="sh">${o.shortEx}</span></span></td>
+      <td class="${o.diff>0?'pos':''}">${fmtPct(o.diff)}</td>
+      <td>${fmtCountdown(o.nextFundingMs)}</td>
+      <td class="${o.netUsd>=0?'pos':'neg'}">${fmtUsd(o.netUsd)}</td>
+      <td class="${o.netPct>=0?'pos':'neg'}">${fmtPctPlain(o.netPct)}</td>
+      <td>${fmtUsd(o.positionSize)}</td>
+      <td>${fmtUsd(o.marginPerLeg*2)}</td>
+      <td>${fmtPctPlain(o.basisPct*100, 3)}</td>
+      <td class="score" style="color:${o.score>=75?'var(--green)':o.score>=55?'var(--gold)':'var(--muted-2)'}">${o.score}</td>
+      <td class="left"><span class="badge ${badgeClass(o.cls)}">${o.cls}</span></td>
+    </tr>
+  `).join('');
+  document.querySelectorAll('#opBody tr[data-idx]').forEach(tr=>{
+    tr.addEventListener('click', ()=> openDrawer(opportunities[parseInt(tr.dataset.idx)]));
+  });
+}
+
+document.querySelectorAll('thead th[data-k]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(sortKey===k) sortDir *= -1; else { sortKey=k; sortDir=-1; }
+    document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sorted'));
+    th.classList.add('sorted');
+    renderTable();
+  });
+});
+['f_diff','f_netpct','f_netusd','f_exch','f_coin','f_score','f_vol','f_class'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderTable);
+  document.getElementById(id).addEventListener('change', renderTable);
+});
+document.getElementById('clearFilters').addEventListener('click', ()=>{
+  ['f_diff','f_netpct','f_netusd','f_coin','f_score','f_vol'].forEach(id=> document.getElementById(id).value='');
+  ['f_exch','f_class'].forEach(id=> document.getElementById(id).value='');
+  renderTable();
+});
+
+/* ============================================================
+   DRAWER (detail view)
+   ============================================================ */
+const overlay = document.getElementById('overlay');
+const drawer = document.getElementById('drawer');
+document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
+overlay.addEventListener('click', closeDrawer);
+function closeDrawer(){ overlay.classList.remove('open'); drawer.classList.remove('open'); }
+
+async function openDrawer(o){
+  document.getElementById('drawerTitle').textContent = `${o.base}-PERP`;
+  document.getElementById('drawerRoute').innerHTML = `Long <span class="lg">${o.longEx}</span> @ ${o.longPrice.toFixed(4)} &nbsp;/&nbsp; Short <span class="sh">${o.shortEx}</span> @ ${o.shortPrice.toFixed(4)}`;
+  const body = document.getElementById('drawerBody');
+
+  const capitals = [50,100,250,500,1000,5000];
+  const projRows = capitals.map(c=>{
+    const scale = c/capital;
+    const netInterval = o.netUsd*scale;
+    return { c, netInterval };
+  });
+
+  const intervalsPerDay = 24/FUNDING_INTERVAL_HOURS;
+  const dailyAtCap = o.netUsd*intervalsPerDay;
+  const weeklyAtCap = dailyAtCap*7;
+  const monthlyAtCap = dailyAtCap*30;
+
+  body.innerHTML = `
+    <div class="section-title">Rates & basis</div>
+    <div class="kv-grid">
+      <div class="kv"><span class="k">${o.longEx} funding</span><span class="v">${fmtPct(o.longFunding)}</span></div>
+      <div class="kv"><span class="k">${o.shortEx} funding</span><span class="v">${fmtPct(o.shortFunding)}</span></div>
+      <div class="kv"><span class="k">Differential / ${FUNDING_INTERVAL_HOURS}h</span><span class="v pos">${fmtPct(o.diff)}</span></div>
+      <div class="kv"><span class="k">Basis (short − long)</span><span class="v">${fmtPctPlain(o.basisPct*100,3)}</span></div>
+      <div class="kv"><span class="k">Next funding</span><span class="v">${fmtCountdown(o.nextFundingMs)}</span></div>
+      <div class="kv"><span class="k">Arbitrage score</span><span class="v">${o.score}/100</span></div>
+    </div>
+
+    <div class="section-title">Position sizing on $${capital}</div>
+    <div class="kv-grid">
+      <div class="kv"><span class="k">Margin per leg</span><span class="v">${fmtUsd(o.marginPerLeg)}</span></div>
+      <div class="kv"><span class="k">Total margin required</span><span class="v">${fmtUsd(o.marginPerLeg*2)}</span></div>
+      <div class="kv"><span class="k">Assumed leverage</span><span class="v">${o.leverage}x</span></div>
+      <div class="kv"><span class="k">Notional per leg</span><span class="v">${fmtUsd(o.positionSize)}</span></div>
+      <div class="kv"><span class="k">Est. liquidation distance</span><span class="v">${o.liqDistPct.toFixed(1)}%</span></div>
+      <div class="kv"><span class="k">Classification</span><span class="v"><span class="badge ${badgeClass(o.cls)}">${o.cls}</span></span></div>
+    </div>
+
+    <div class="section-title">Profit breakdown (per ${FUNDING_INTERVAL_HOURS}h interval)</div>
+    <div class="kv-grid">
+      <div class="kv"><span class="k">Funding income</span><span class="v pos">${fmtUsd(o.fundingIncomeUsd)}</span></div>
+      <div class="kv"><span class="k">Trading fees (open+close, both legs)</span><span class="v neg">-${fmtUsd(o.feesUsd).replace('-','')}</span></div>
+      <div class="kv"><span class="k">Slippage (both legs, estimate)</span><span class="v neg" id="slipVal">-${fmtUsd(o.slippageUsd).replace('-','')}</span></div>
+      <div class="kv"><span class="k">Basis cost (entry price gap)</span><span class="v neg" id="basisVal">-${fmtUsd(o.basisCostUsd).replace('-','')}</span></div>
+      <div class="kv"><span class="k">Net profit / interval</span><span class="v ${o.netUsd>=0?'pos':'neg'}" id="netUsdVal">${fmtUsd(o.netUsd)}</span></div>
+      <div class="kv"><span class="k">Net %</span><span class="v ${o.netPct>=0?'pos':'neg'}" id="netPctVal">${fmtPctPlain(o.netPct)}</span></div>
+    </div>
+    <div id="recalcNote" style="font-size:11px; color:var(--muted); margin-top:4px; font-family:var(--mono);">estimate — recalculates once the order book below loads</div>
+
+    <div class="section-title">Projections (assume differential holds — see disclaimer)</div>
+    <div class="kv-grid" id="projGrid">
+      <div class="kv"><span class="k">Daily</span><span class="v ${dailyAtCap>=0?'pos':'neg'}" id="dailyVal">${fmtUsd(dailyAtCap)}</span></div>
+      <div class="kv"><span class="k">Weekly</span><span class="v ${weeklyAtCap>=0?'pos':'neg'}" id="weeklyVal">${fmtUsd(weeklyAtCap)}</span></div>
+      <div class="kv"><span class="k">Monthly</span><span class="v ${monthlyAtCap>=0?'pos':'neg'}" id="monthlyVal">${fmtUsd(monthlyAtCap)}</span></div>
+      <div class="kv"><span class="k">Monthly ROI on $${capital}</span><span class="v ${monthlyAtCap>=0?'pos':'neg'}" id="monthlyRoiVal">${fmtPctPlain(monthlyAtCap/capital*100)}</span></div>
+    </div>
+
+    <table class="proj-table" id="projTable">
+      <thead><tr><th>Capital</th><th>Net profit / interval</th><th>Net profit / day</th></tr></thead>
+      <tbody>
+        ${projRows.map(r=>`<tr><td>$${r.c}</td><td class="${r.netInterval>=0?'pos':'neg'}">${fmtUsd(r.netInterval)}</td><td class="${r.netInterval>=0?'pos':'neg'}">${fmtUsd(r.netInterval*intervalsPerDay)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div class="section-title">Live order book (top 5)</div>
+    <div class="ob-cols" id="obCols">
+      <div class="ob-col"><h4>${o.longEx} — ${o.base}</h4><div class="loading-line">Loading order book…</div></div>
+      <div class="ob-col"><h4>${o.shortEx} — ${o.base}</h4><div class="loading-line">Loading order book…</div></div>
+    </div>
+
+    <div class="note">
+      Fees use standard taker-fee assumptions (${(FEES[o.longEx]*100).toFixed(3)}% / ${(FEES[o.shortEx]*100).toFixed(3)}%) — your account's actual fee tier may be lower. Slippage above is a heuristic estimate until the live order book below loads; it's then recalculated from actual top-5 depth for a $${capital} order (open leg only — closing slippage is assumed similar and still uses the estimate). Leverage is set to ${o.leverage}x (adjustable at the top of the page) to keep liquidation distance wide relative to typical funding-arb price moves. ${o.demo ? 'One or both exchanges could not be reached live for this pair, so demo data is shown for those legs — do not trade on this row.' : ''}
+    </div>
+  `;
+
+  overlay.classList.add('open');
+  drawer.classList.add('open');
+
+  // lazy-load order books and refine slippage from real depth
+  const [obLong, obShort] = await Promise.all([
+    fetchOrderBookTop(o.longEx, o.s),
+    fetchOrderBookTop(o.shortEx, o.s),
+  ]);
+  recalcFromOrderBook(o, obLong, obShort, intervalsPerDay);
+  const obCols = document.getElementById('obCols');
+  if(obCols){
+    obCols.innerHTML = [
+      renderObCol(o.longEx, o.base, obLong),
+      renderObCol(o.shortEx, o.base, obShort),
+    ].join('');
+  }
+}
+
+// Walk order-book levels to fill a target USD notional, returning the volume-weighted avg price.
+// side: 'buy' walks asks (ascending, worst last), 'sell' walks bids (descending, worst last).
+function walkBookForNotional(levels, notionalUsd){
+  if(!levels || levels.length===0) return null;
+  let remaining = notionalUsd, filledUsd = 0, filledQty = 0;
+  for(const [price, qty] of levels){
+    const levelUsd = price*qty;
+    const take = Math.min(levelUsd, remaining);
+    filledUsd += take;
+    filledQty += take/price;
+    remaining -= take;
+    if(remaining <= 0) break;
+  }
+  const limitedDepth = remaining > 0; // book only had 5 levels; ran out before filling notional
+  if(filledQty === 0) return null;
+  return { avgPrice: filledUsd/filledQty, limitedDepth, bestPrice: levels[0][0] };
+}
+
+function recalcFromOrderBook(o, obLong, obShort, intervalsPerDay){
+  if(!obLong || !obShort) return; // leave estimate in place if either book failed to load
+  const longFill = walkBookForNotional(obLong.asks, o.positionSize);   // buying to open long
+  const shortFill = walkBookForNotional(obShort.bids, o.positionSize); // selling to open short
+  if(!longFill || !shortFill) return;
+
+  const longSlipPct = (longFill.avgPrice - longFill.bestPrice) / longFill.bestPrice;
+  const shortSlipPct = (shortFill.bestPrice - shortFill.avgPrice) / shortFill.bestPrice;
+  // Open-leg slippage measured directly from the book; closing-leg slippage assumed comparable.
+  const realSlippageUsd = Math.max(0, (longSlipPct + shortSlipPct)) * o.positionSize * 2;
+
+  // Recompute basis from actual executable prices (best ask on long, best bid on short) rather than mark price.
+  const execBasisPct = (shortFill.bestPrice - longFill.bestPrice) / longFill.bestPrice;
+  const realBasisCostUsd = Math.abs(execBasisPct) * o.positionSize * 0.5;
+
+  const realNetUsd = o.fundingIncomeUsd - o.feesUsd - realSlippageUsd - realBasisCostUsd;
+  const realNetPct = (realNetUsd / capital) * 100;
+  const realDaily = realNetUsd * intervalsPerDay;
+
+  const set = (id, html) => { const el = document.getElementById(id); if(el) el.innerHTML = html; };
+  set('slipVal', `-${fmtUsd(realSlippageUsd).replace('-','')}`);
+  set('basisVal', `-${fmtUsd(realBasisCostUsd).replace('-','')}`);
+  const netUsdEl = document.getElementById('netUsdVal');
+  if(netUsdEl){ netUsdEl.textContent = fmtUsd(realNetUsd); netUsdEl.className = 'v ' + (realNetUsd>=0?'pos':'neg'); }
+  const netPctEl = document.getElementById('netPctVal');
+  if(netPctEl){ netPctEl.textContent = fmtPctPlain(realNetPct); netPctEl.className = 'v ' + (realNetPct>=0?'pos':'neg'); }
+  set('dailyVal', fmtUsd(realDaily));
+  set('weeklyVal', fmtUsd(realDaily*7));
+  set('monthlyVal', fmtUsd(realDaily*30));
+  set('monthlyRoiVal', fmtPctPlain((realDaily*30/capital)*100));
+
+  const projTableBody = document.querySelector('#projTable tbody');
+  if(projTableBody){
+    const capitals = [50,100,250,500,1000,5000];
+    projTableBody.innerHTML = capitals.map(c=>{
+      const scale = c/capital;
+      const netInterval = realNetUsd*scale;
+      return `<tr><td>$${c}</td><td class="${netInterval>=0?'pos':'neg'}">${fmtUsd(netInterval)}</td><td class="${netInterval>=0?'pos':'neg'}">${fmtUsd(netInterval*intervalsPerDay)}</td></tr>`;
+    }).join('');
+  }
+
+  const note = document.getElementById('recalcNote');
+  if(note){
+    const depthWarning = (longFill.limitedDepth || shortFill.limitedDepth)
+      ? ' Order exceeds visible top-5 depth on at least one side — real slippage may be higher than shown.'
+      : '';
+    note.textContent = `recalculated from live order-book depth for a $${capital} order.${depthWarning}`;
+    note.style.color = 'var(--gold)';
+  }
+}
+
+function renderObCol(ex, base, ob){
+  if(!ob) return `<div class="ob-col"><h4>${ex} — ${base}</h4><div class="loading-line">Order book unavailable (request blocked or symbol not found).</div></div>`;
+  const asks = ob.asks.slice(0,5).reverse();
+  const bids = ob.bids.slice(0,5);
+  return `<div class="ob-col"><h4>${ex} — ${base}</h4>
+    ${asks.map(a=>`<div class="ob-row ask"><span>${a[0].toFixed(4)}</span><span>${a[1]}</span></div>`).join('')}
+    <div style="border-top:1px solid var(--border); margin:4px 0;"></div>
+    ${bids.map(b=>`<div class="ob-row bid"><span>${b[0].toFixed(4)}</span><span>${b[1]}</span></div>`).join('')}
+  </div>`;
+}
+
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+async function refreshAll(){
+  document.getElementById('refreshBtn').textContent = 'Refreshing…';
+  await Promise.all([fetchBinance(), fetchBybit(), fetchOKX()]);
+  opportunities = buildOpportunities().sort((a,b)=> b.netUsd - a.netUsd);
+  renderStatus();
+  renderSummary();
+  renderTable();
+  document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  document.getElementById('refreshBtn').textContent = 'Refresh now';
+}
+
+document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+document.getElementById('capitalInput').addEventListener('change', (e)=>{
+  capital = Math.max(1, parseFloat(e.target.value)||100);
+  opportunities = buildOpportunities().sort((a,b)=> b.netUsd - a.netUsd);
+  renderSummary();
+  renderTable();
+});
+document.getElementById('leverageInput').addEventListener('change', (e)=>{
+  leverage = Math.max(1, Math.min(20, parseFloat(e.target.value)||3));
+  opportunities = buildOpportunities().sort((a,b)=> b.netUsd - a.netUsd);
+  renderSummary();
+  renderTable();
+});
+
+refreshAll();
+refreshTimer = setInterval(refreshAll, REFRESH_MS);
+</script>
+</body>
+</html>
